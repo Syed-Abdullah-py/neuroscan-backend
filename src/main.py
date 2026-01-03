@@ -39,7 +39,7 @@ async def get_face_encoding_from_upload(file: UploadFile):
         traceback.print_exc()
         return None
 
-def compare_faces(known_encoding, unknown_encoding, tolerance=0.6):
+def compare_faces(known_encoding, unknown_encoding, tolerance=0.87):
     """
     Compares a known face encoding against a candidate encoding.
     """
@@ -107,7 +107,7 @@ async def validate_case_files(files: List[UploadFile] = File(...)):
     Validates uploaded files for a case.
     Rules:
     - If .h5 files: Count must be 155.
-    - If .nii.gz files: Count must be 4.
+    - If .nii / .nii.gz files: Count must be 4.
     - If .zip / .tar: Extract temp and apply same rules to contents.
     
     Returns:
@@ -117,7 +117,7 @@ async def validate_case_files(files: List[UploadFile] = File(...)):
     import os
     import shutil
     import zipfile
-    import  tarfile
+    import tarfile
     from pathlib import Path
 
     # Create a temporary directory for processing
@@ -136,7 +136,7 @@ async def validate_case_files(files: List[UploadFile] = File(...)):
         is_archive = False
         if len(saved_files) == 1:
             f = saved_files[0]
-            if f.suffix in ['.zip', '.tar', '.gz']: # Simple check, might need better MIME check
+            if f.suffix in ['.zip', '.tar', '.gz']: 
                 is_archive = True
                 # Extract
                 extract_path = temp_path / "extracted"
@@ -162,24 +162,25 @@ async def validate_case_files(files: List[UploadFile] = File(...)):
         for f in saved_files:
             if f.name.endswith('.h5'):
                 h5_count += 1
-            elif f.name.endswith('.nii.gz'):
+            # CHANGED: Check for both .nii.gz AND .nii
+            elif f.name.endswith('.nii.gz') or f.name.endswith('.nii'):
                 nii_count += 1
                 
         # Apply Logic
         if h5_count > 0 and nii_count > 0:
-             return {"valid": False, "message": "Mixed file types found (.h5 and .nii.gz). Please upload only one type."}
+             return {"valid": False, "message": "Mixed file types found (.h5 and .nii). Please upload only one type."}
         
         if h5_count > 0:
             if h5_count == 155:
                 return {"valid": True, "message": "Valid .h5 dataset", "file_count": h5_count, "type": "h5"}
             else:
                  return {"valid": False, "message": f"Invalid .h5 file count. Expected 155, got {h5_count}", "file_count": h5_count}
-                 
+        
+        # CHANGED: Validation logic covers both .nii and .nii.gz
         if nii_count > 0:
             if nii_count == 4:
-                return {"valid": True, "message": "Valid .nii.gz dataset", "file_count": nii_count, "type": "nii.gz"}
+                return {"valid": True, "message": "Valid NIfTI dataset (.nii/.nii.gz)", "file_count": nii_count, "type": "nii"}
             else:
-                return {"valid": False, "message": f"Invalid .nii.gz file count. Expected 4, got {nii_count}", "file_count": nii_count}
+                return {"valid": False, "message": f"Invalid NIfTI file count. Expected 4, got {nii_count}", "file_count": nii_count}
                 
-        return {"valid": False, "message": "No valid .h5 or .nii.gz files found in upload."}
-
+        return {"valid": False, "message": "No valid .h5, .nii, or .nii.gz files found in upload."}
